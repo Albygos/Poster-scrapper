@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 
-app = FastAPI(title="Social Design Scraper API")
+app = FastAPI(title="Strict Social Poster Scraper")
 
 HTML_UI = """
 <!DOCTYPE html>
@@ -13,28 +13,28 @@ HTML_UI = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Social Poster Scraper</title>
+    <title>Strict Social Poster Scraper</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-950 text-white p-8 font-sans min-h-screen">
     <div class="max-w-7xl mx-auto">
         <div class="flex items-center gap-4 mb-2">
-            <h1 class="text-4xl font-bold tracking-tight">Social Design API</h1>
+            <h1 class="text-4xl font-bold tracking-tight">Strict Source Scraper</h1>
             <div class="flex gap-2">
-                <span class="bg-red-600 text-xs font-bold px-2 py-1 rounded">Pinterest</span>
-                <span class="bg-pink-600 text-xs font-bold px-2 py-1 rounded">Dribbble</span>
-                <span class="bg-gradient-to-r from-purple-500 to-orange-500 text-xs font-bold px-2 py-1 rounded">Instagram</span>
+                <span class="bg-red-600 text-xs font-bold px-2 py-1 rounded shadow">Pinterest Only</span>
+                <span class="bg-pink-600 text-xs font-bold px-2 py-1 rounded shadow">Dribbble Only</span>
+                <span class="bg-gradient-to-r from-purple-500 to-orange-500 text-xs font-bold px-2 py-1 rounded shadow">Instagram Only</span>
             </div>
         </div>
-        <p class="text-gray-400 mb-8">Bypassing login walls using advanced site-dorking to extract high-res design assets.</p>
+        <p class="text-gray-400 mb-8">Hardware-level backend filtering ensures zero cross-contamination from other websites.</p>
         
         <div class="flex gap-4 mb-8">
-            <input id="searchInput" type="text" placeholder="e.g., Cyberpunk typography" 
+            <input id="searchInput" type="text" placeholder="e.g., Cyberpunk neon typography" 
                    class="w-full p-4 rounded-xl bg-gray-900 border border-gray-800 text-white focus:outline-none focus:border-pink-500 transition shadow-inner"
-                   value="Cyberpunk typography">
+                   value="Cyberpunk neon typography">
             <button onclick="searchPosters()" id="btn"
                     class="px-8 py-4 bg-white text-black hover:bg-gray-200 rounded-xl font-bold transition whitespace-nowrap shadow-lg">
-                Scrape Platforms
+                Extract Exclusive
             </button>
         </div>
         
@@ -47,9 +47,9 @@ HTML_UI = """
 
     <script>
         function getBadge(domain) {
-            if (domain.includes('pinterest')) return '<span class="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full absolute top-3 left-3 shadow">Pinterest</span>';
-            if (domain.includes('dribbble')) return '<span class="bg-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded-full absolute top-3 left-3 shadow">Dribbble</span>';
-            if (domain.includes('instagram')) return '<span class="bg-gradient-to-r from-purple-500 to-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-full absolute top-3 left-3 shadow">Instagram</span>';
+            if (domain.includes('pinterest')) return '<span class="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full absolute top-3 left-3 shadow border border-red-500">Pinterest</span>';
+            if (domain.includes('dribbble')) return '<span class="bg-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded-full absolute top-3 left-3 shadow border border-pink-400">Dribbble</span>';
+            if (domain.includes('instagram')) return '<span class="bg-gradient-to-r from-purple-500 to-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-full absolute top-3 left-3 shadow border border-purple-400">Instagram</span>';
             return `<span class="bg-gray-700 text-white text-[10px] font-bold px-2 py-1 rounded-full absolute top-3 left-3 shadow">${domain}</span>`;
         }
 
@@ -68,6 +68,11 @@ HTML_UI = """
                 const res = await fetch(`/api/search?topic=${encodeURIComponent(topic)}&limit=30`);
                 const data = await res.json();
                 
+                if (data.results.length === 0) {
+                    grid.innerHTML = `<p class="text-gray-400 col-span-full text-center py-10">No exclusive posters found for "${topic}" on these 3 platforms.</p>`;
+                    return;
+                }
+
                 grid.innerHTML = data.results.map(p => `
                     <div class="bg-gray-900 rounded-xl overflow-hidden border border-gray-800 hover:border-pink-500 transition group relative shadow-lg">
                         ${getBadge(p.platform_domain)}
@@ -86,11 +91,11 @@ HTML_UI = """
                     </div>
                 `).join('');
             } catch (e) {
-                grid.innerHTML = `<p class="text-red-400 col-span-full text-center py-10">Error scraping data from platforms.</p>`;
+                grid.innerHTML = `<p class="text-red-400 col-span-full text-center py-10">Error scraping data.</p>`;
             } finally {
                 loader.classList.add('hidden');
                 btn.disabled = false;
-                btn.innerText = "Scrape Platforms";
+                btn.innerText = "Extract Exclusive";
             }
         }
         searchPosters();
@@ -110,32 +115,31 @@ def scrape_social_posters(
 ):
     clean_topic = topic.strip()
     
-    # 1. Inject target platforms directly into the search string using OR operators
+    # 1. Advanced dorking to isolate the sources at the search engine level
     target_sites = "(site:pinterest.com OR site:dribbble.com OR site:instagram.com)"
+    search_term = f"{clean_topic} poster {target_sites}"
     
-    if "poster" in clean_topic.lower():
-        search_term = f"{clean_topic} {target_sites}"
-    else:
-        search_term = f"{clean_topic} poster {target_sites}"
-
-    # 2. Strict constraints: Tall aspect ratio (posters) + Large sizes only
+    # Force vertical layouts and large resolution
     filters = "+filterui:aspect-tall+filterui:imagesize-large"
     url = f"https://www.bing.com/images/search?q={search_term.replace(' ', '+')}&qft={filters}"
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
         "Accept-Language": "en-US,en;q=0.9",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=8)
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Target extraction failed: {str(e)}")
         
     soup = BeautifulSoup(response.text, "html.parser")
     results = []
+    
+    # 2. Hardcoded backend verification list
+    allowed_domains = ["pinterest.", "dribbble.", "instagram."]
     
     for a in soup.find_all("a", class_="iusc"):
         m_data = a.get("m")
@@ -146,19 +150,31 @@ def scrape_social_posters(
                 turl = data.get("turl")
                 source_url = data.get("purl", "")
                 
-                if not murl or murl.startswith("data:") or "icon" in murl.lower():
+                # Verify domain validity
+                if not source_url:
                     continue
                     
-                # Extract clean domain name for the UI badges
-                domain = urlparse(source_url).netloc.replace("www.", "")
+                domain_netloc = urlparse(source_url).netloc.lower()
                 
+                # 3. STRICT ENFORCEMENT: Kill the row if it's not one of our 3 targets
+                if not any(allowed in domain_netloc for allowed in allowed_domains):
+                    continue
+                
+                # Kill bad image links
+                if not murl or murl.startswith("data:") or "icon" in murl.lower():
+                    continue
+                
+                # Clean up the domain name for the UI tag
+                clean_domain = domain_netloc.replace("www.", "")
+                
+                # Deduplicate
                 if murl not in [r["image_url"] for r in results]:
                     results.append({
                         "title": data.get("t", f"{clean_topic} Design"),
                         "image_url": murl,
                         "thumbnail_url": turl,
                         "source_page": source_url,
-                        "platform_domain": domain
+                        "platform_domain": clean_domain
                     })
                     
                 if len(results) >= limit:
