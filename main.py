@@ -1,14 +1,11 @@
-import os
 import json
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import HTMLResponse
 from curl_cffi import requests
 from bs4 import BeautifulSoup
-import uvicorn
 
-app = FastAPI(title="Advanced Poster Scraper API")
+app = FastAPI(title="Advanced Poster Scraper API on Vercel")
 
-# Embedded UI for immediate testing in the browser
 HTML_UI = """
 <!DOCTYPE html>
 <html lang="en">
@@ -21,7 +18,7 @@ HTML_UI = """
 <body class="bg-gray-900 text-white p-8 font-sans">
     <div class="max-w-6xl mx-auto">
         <h1 class="text-4xl font-bold mb-2">Live Poster API</h1>
-        <p class="text-gray-400 mb-8">Bypasses bot-protection using curl_cffi and scrapes tall aspect-ratio posters.</p>
+        <p class="text-gray-400 mb-8">Bypasses bot-protection using curl_cffi and scrapes tall aspect-ratio posters directly from Vercel.</p>
         
         <div class="flex gap-4 mb-8">
             <input id="searchInput" type="text" placeholder="e.g., Cyberpunk Synthwave" 
@@ -73,7 +70,6 @@ HTML_UI = """
                 btn.innerText = "Scrape";
             }
         }
-        // Auto-load on open
         searchPosters();
     </script>
 </body>
@@ -89,15 +85,13 @@ def scrape_posters(
     topic: str = Query(..., description="Theme, e.g. 'vintage jazz'"), 
     limit: int = 20
 ):
-    # Enforce poster aspect ratio (tall) directly at the search engine level
     query = f"{topic} poster design"
     url = f"https://www.bing.com/images/search?q={query.replace(' ', '+')}&qft=+filterui:aspect-tall"
     
-    # curl_cffi spoofs the exact TLS/JA3 fingerprints of Google Chrome
     session = requests.Session(impersonate="chrome")
     
     try:
-        response = session.get(url, timeout=10)
+        response = session.get(url, timeout=8)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
         
@@ -109,10 +103,9 @@ def scrape_posters(
         if m_data:
             try:
                 data = json.loads(m_data)
-                murl = data.get("murl") # High resolution source
-                turl = data.get("turl") # Thumbnail
+                murl = data.get("murl") 
+                turl = data.get("turl") 
                 
-                # Deduplicate and validate
                 if murl and murl not in [r["image_url"] for r in results]:
                     results.append({
                         "title": data.get("t", f"{topic} Poster"),
@@ -131,8 +124,3 @@ def scrape_posters(
         "count": len(results), 
         "results": results
     }
-
-if __name__ == "__main__":
-    # Dynamically binds to Render's required PORT environment variable
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
