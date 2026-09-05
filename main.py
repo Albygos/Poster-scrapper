@@ -1,9 +1,10 @@
 import json
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import HTMLResponse
-from curl_cffi import requests
+import requests
 from bs4 import BeautifulSoup
 
+# Vercel will now find this because standard 'requests' won't crash the server build
 app = FastAPI(title="High-Res Poster Scraper API on Vercel")
 
 HTML_UI = """
@@ -97,23 +98,24 @@ def scrape_posters(
 ):
     clean_topic = topic.strip()
     
-    # 1. EXACT QUERY: Do not append "poster design" if the user already typed "poster"
     if "poster" in clean_topic.lower():
         search_term = clean_topic
     else:
         search_term = f"{clean_topic} poster"
 
-    # 2. STRICT FILTERS: 
-    # aspect-tall = forces vertical posters
-    # imagesize-large = forces high resolution only (kills tiny thumbnails and generic junk)
     filters = "+filterui:aspect-tall+filterui:imagesize-large"
-    
     url = f"https://www.bing.com/images/search?q={search_term.replace(' ', '+')}&qft={filters}"
     
-    session = requests.Session(impersonate="chrome")
+    # Standard requests with Chrome headers works natively on Vercel
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+    }
     
     try:
-        response = session.get(url, timeout=8)
+        response = requests.get(url, headers=headers, timeout=8)
+        response.raise_for_status()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
         
@@ -128,11 +130,9 @@ def scrape_posters(
                 murl = data.get("murl") 
                 turl = data.get("turl") 
                 
-                # 3. PURGE JUNK: Ignore empty links, base64 data URIs, or small icon sites
                 if not murl or murl.startswith("data:") or "icon" in murl.lower():
                     continue
                 
-                # Ensure no duplicates
                 if murl not in [r["image_url"] for r in results]:
                     results.append({
                         "title": data.get("t", f"{clean_topic} Poster"),
@@ -148,20 +148,6 @@ def scrape_posters(
                 
     return {
         "topic": clean_topic,
-        "count": len(results), 
-        "results": results
-    }
-                        "thumbnail_url": turl,
-                        "source_page": data.get("purl")
-                    })
-                    
-                if len(results) >= limit:
-                    break
-            except Exception:
-                continue
-                
-    return {
-        "topic": topic, 
         "count": len(results), 
         "results": results
     }
