@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from curl_cffi import requests
 from bs4 import BeautifulSoup
 
-app = FastAPI(title="Advanced Poster Scraper API on Vercel")
+app = FastAPI(title="High-Res Poster Scraper API on Vercel")
 
 HTML_UI = """
 <!DOCTYPE html>
@@ -12,25 +12,30 @@ HTML_UI = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Limitless Poster Scraper</title>
+    <title>HD Poster Scraper</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white p-8 font-sans">
     <div class="max-w-6xl mx-auto">
-        <h1 class="text-4xl font-bold mb-2">Live Poster API</h1>
-        <p class="text-gray-400 mb-8">Bypasses bot-protection using curl_cffi and scrapes tall aspect-ratio posters directly from Vercel.</p>
+        <div class="flex items-center gap-4 mb-2">
+            <h1 class="text-4xl font-bold">HD Poster API</h1>
+            <span class="bg-green-600 text-xs font-bold px-2 py-1 rounded">Strict High-Res</span>
+        </div>
+        <p class="text-gray-400 mb-8">Scraping exact queries with forced vertical and large-size filters.</p>
         
         <div class="flex gap-4 mb-8">
-            <input id="searchInput" type="text" placeholder="e.g., Cyberpunk Synthwave" 
+            <input id="searchInput" type="text" placeholder="e.g., Onam malayalam poster" 
                    class="w-full p-4 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500"
-                   value="Vintage Jazz">
+                   value="Onam malayalam poster">
             <button onclick="searchPosters()" id="btn"
-                    class="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold transition">
-                Scrape
+                    class="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold transition whitespace-nowrap">
+                Scrape HD
             </button>
         </div>
         
-        <div id="loader" class="hidden text-center py-10 text-gray-400">Scraping the web... (impersonating Chrome)</div>
+        <div id="loader" class="hidden text-center py-10 text-blue-400 font-bold animate-pulse">
+            Fetching High-Quality Posters...
+        </div>
         
         <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
     </div>
@@ -52,13 +57,18 @@ HTML_UI = """
                 const data = await res.json();
                 
                 grid.innerHTML = data.results.map(p => `
-                    <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition">
-                        <a href="${p.image_url}" target="_blank">
-                            <img src="${p.thumbnail_url}" class="w-full h-72 object-cover" loading="lazy">
+                    <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-green-500 transition group">
+                        <a href="${p.image_url}" target="_blank" class="block relative">
+                            <img src="${p.thumbnail_url}" class="w-full h-80 object-cover" loading="lazy">
+                            <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition flex items-center justify-center">
+                                <span class="opacity-0 group-hover:opacity-100 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg">
+                                    View Full HD
+                                </span>
+                            </div>
                         </a>
                         <div class="p-4">
                             <p class="text-sm text-gray-300 truncate" title="${p.title}">${p.title}</p>
-                            <a href="${p.source_page}" target="_blank" class="text-xs text-blue-400 mt-2 inline-block">View Source &rarr;</a>
+                            <a href="${p.source_page}" target="_blank" class="text-xs text-blue-400 mt-2 inline-block hover:underline">Website Source &rarr;</a>
                         </div>
                     </div>
                 `).join('');
@@ -67,7 +77,7 @@ HTML_UI = """
             } finally {
                 loader.classList.add('hidden');
                 btn.disabled = false;
-                btn.innerText = "Scrape";
+                btn.innerText = "Scrape HD";
             }
         }
         searchPosters();
@@ -82,11 +92,23 @@ def serve_ui():
 
 @app.get("/api/search")
 def scrape_posters(
-    topic: str = Query(..., description="Theme, e.g. 'vintage jazz'"), 
+    topic: str = Query(..., description="Exact search query, e.g. 'Onam malayalam poster'"), 
     limit: int = 20
 ):
-    query = f"{topic} poster design"
-    url = f"https://www.bing.com/images/search?q={query.replace(' ', '+')}&qft=+filterui:aspect-tall"
+    clean_topic = topic.strip()
+    
+    # 1. EXACT QUERY: Do not append "poster design" if the user already typed "poster"
+    if "poster" in clean_topic.lower():
+        search_term = clean_topic
+    else:
+        search_term = f"{clean_topic} poster"
+
+    # 2. STRICT FILTERS: 
+    # aspect-tall = forces vertical posters
+    # imagesize-large = forces high resolution only (kills tiny thumbnails and generic junk)
+    filters = "+filterui:aspect-tall+filterui:imagesize-large"
+    
+    url = f"https://www.bing.com/images/search?q={search_term.replace(' ', '+')}&qft={filters}"
     
     session = requests.Session(impersonate="chrome")
     
@@ -106,10 +128,29 @@ def scrape_posters(
                 murl = data.get("murl") 
                 turl = data.get("turl") 
                 
-                if murl and murl not in [r["image_url"] for r in results]:
+                # 3. PURGE JUNK: Ignore empty links, base64 data URIs, or small icon sites
+                if not murl or murl.startswith("data:") or "icon" in murl.lower():
+                    continue
+                
+                # Ensure no duplicates
+                if murl not in [r["image_url"] for r in results]:
                     results.append({
-                        "title": data.get("t", f"{topic} Poster"),
+                        "title": data.get("t", f"{clean_topic} Poster"),
                         "image_url": murl,
+                        "thumbnail_url": turl,
+                        "source_page": data.get("purl")
+                    })
+                    
+                if len(results) >= limit:
+                    break
+            except Exception:
+                continue
+                
+    return {
+        "topic": clean_topic,
+        "count": len(results), 
+        "results": results
+    }
                         "thumbnail_url": turl,
                         "source_page": data.get("purl")
                     })
